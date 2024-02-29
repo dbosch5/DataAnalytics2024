@@ -72,7 +72,7 @@ WHERE transaction.company_id = company.id);
 a la companyia senar institute. Per a això, et demanen la llista de totes les transaccions realitzades per empreses 
 que estan situades en el mateix país que aquesta companyia. **/
 
--- No apareix el, "Senar Institute", suposo que és un altre errada de traducció automàtica. Busco per "Institute".
+-- No apareix el, "Senar Institute", suposo que és una errada de traducció automàtica. Busco per "Institute".
 SELECT DISTINCT country, company_name FROM transactions.company
 WHERE company_name LIKE "%Institute";
 
@@ -119,9 +119,13 @@ INNER JOIN transactions.company
 ON  transaction.company_id = company.id 
 GROUP BY country ORDER BY avg_country_amount DESC;
 
--- La resposta és: United States, Ireland, United Kingdom, Canada i Sweden.
-
--- REVISAR / FALTA ORDRE COMPLETA
+-- Ordre completa
+SELECT AVG(transaction.amount) AS avg_country_amount, company.country
+FROM transactions.transaction
+INNER JOIN transactions.company
+ON  transaction.company_id = company.id 
+GROUP BY country
+HAVING avg_country_amount > (SELECT AVG(transaction.amount) FROM transactions.transaction);
 
 ## Exercici 2
 
@@ -144,17 +148,16 @@ GROUP BY company_id
 HAVING COUNT(transaction.id) < 4;
 
 -- Columna amb número de transaccions 
-SELECT transaction.company_id, company.company_name, COUNT(transaction.id) as num_trans FROM transactions.transaction
+SELECT company.company_name, COUNT(transaction.id) AS num_trans FROM transactions.transaction
 INNER JOIN transactions.company
 ON  transaction.company_id = company.id 
 GROUP BY company_id
 ORDER BY num_trans DESC;
-
--- REVISAR / FALTA ORDRE COMPLETA
 
 -- Ordre completa
-SELECT company.company_name, COUNT(transaction.id) as num_trans FROM transactions.transaction
+SELECT company.company_name, IF (COUNT(transaction.id) > 4, "Yes", "No") AS greater_4
+FROM transactions.transaction
 INNER JOIN transactions.company
 ON  transaction.company_id = company.id 
 GROUP BY company_id
-ORDER BY num_trans DESC;
+ORDER BY greater_4 DESC;
