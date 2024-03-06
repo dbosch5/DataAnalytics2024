@@ -21,26 +21,6 @@ CREATE TABLE IF NOT EXISTS database_1.company (
 	website VARCHAR(255)
     );
 
--- Taula tarjetes
-CREATE TABLE IF NOT EXISTS database_1.credit_card (
-	id VARCHAR(15) PRIMARY KEY,
-	iban VARCHAR(50),
-	pan VARCHAR(30),
-	pin VARCHAR(4),
-	cvv VARCHAR(3),
-	expiring_date VARCHAR(10)
-    );
-
--- Taula productes
-CREATE TABLE IF NOT EXISTS database_1.product (
-	id INT PRIMARY KEY,
-    product_name VARCHAR(100),
-    price DECIMAL(10, 2),
-    colour VARCHAR(10),
-    weight DECIMAL(5,2),
-    warehouse_id VARCHAR(10)
-);
-
 -- Taula usuaris
 CREATE TABLE IF NOT EXISTS database_1.user (
         id INT PRIMARY KEY,
@@ -54,6 +34,29 @@ CREATE TABLE IF NOT EXISTS database_1.user (
         postal_code VARCHAR(100),
         address VARCHAR(255)
     );
+   
+-- Taula tarjetes
+CREATE TABLE IF NOT EXISTS database_1.credit_card (
+	id VARCHAR(15) PRIMARY KEY,
+    user_id INT REFERENCES user(id),
+	iban VARCHAR(50),
+	pan VARCHAR(30),
+	pin VARCHAR(4),
+	cvv VARCHAR(3),
+    track1 VARCHAR(255),
+    track2 VARCHAR(255),
+	expiring_date VARCHAR(10)
+    );
+
+-- Taula productes
+CREATE TABLE IF NOT EXISTS database_1.product (
+	id INT PRIMARY KEY,
+    product_name VARCHAR(100),
+    price DECIMAL(10, 2),
+    colour VARCHAR(10),
+    weight DECIMAL(5,2),
+    warehouse_id VARCHAR(10)
+);
 
 -- Taula principal: transaccions
 CREATE TABLE IF NOT EXISTS database_1.transaction (
@@ -73,45 +76,127 @@ CREATE TABLE IF NOT EXISTS database_1.transaction (
     FOREIGN KEY (user_id) REFERENCES user(id)
     );
 
--- Introduïm les dades des dels CSV
--- No em deixa carregar arxius des d'una altra carpeta que no sigui la de:
+-- Introduïr dades
+
+/**  
+Introduïm les dades des dels CSV
+No em deixa carregar arxius des d'una altra carpeta que no sigui la de:
 SHOW VARIABLES LIKE "secure_file_priv";
-
--- Copio els arxius a C:\ProgramData\MySQL\MySQL Server 8.0\Uploads\
--- tampoc em deixa...
-
--- Companyies
-LOAD DATA INFILE 'C:\ProgramData\MySQL\MySQL Server 8.0\Uploads\companies.csv'
-INTO TABLE database_1.company
-FIELDS TERMINATED BY ','
-ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
-IGNORE 1 ROWS;
-
+Copio els arxius a C:\ProgramData\MySQL\MySQL Server 8.0\Uploads\
+Tampoc em deixa...
+Utilitzo el meu estimat editor de text Vim i modifico els arxius CSV
+L'ordre per l'arxiu "companies" és la següent. La primera introdueix INSERT.. al principi de cada línia
+:%s/^/INSERT INTO company (id, company_name, phone, email, country, website) VALUES ( /
+I la següent afegeix el tancament de parèntesis i punt i coma al final de cada línia.
+:%s/$/);/
+Guardo el CSV modificat com a SQL
+Finalment, calia modificar més coses i he utilitzat un script en línia (https://www.convertsimple.com/convert-csv-to-sql-insert-statement/)
+Executo els scripts per introduïr dades.
+En el cas de les dades de producte, utilitzo el Vim per eliminar el símbol de dòlar
+També al CSV de transaction, canvio els punts i comes per comes i altres modificacions.
+**/
 
 ## Exercici 1
 
 /** Realitza una subconsulta que mostri tots els usuaris amb més de 30 transaccions utilitzant almenys 2 taules. **/
+
+-- Transaccions per user
+SELECT user_id, COUNT(user_id) AS num_transactions FROM transaction
+GROUP BY user_id;
+
+-- No hi ha usaris amb més de 30 transaccions.
+SELECT user.id, user.name, user.surname, COUNT(transaction.user_id) AS num_transactions FROM database_1.user
+INNER JOIN database_1.transaction
+ON user.id = transaction.user_id
+GROUP BY user_id
+ORDER BY num_transactions DESC;
+
+-- Si busquessim més de 25 transaccions...
+SELECT user.id, user.name, user.surname, COUNT(transaction.user_id) AS num_transactions FROM database_1.user
+INNER JOIN database_1.transaction
+ON user.id = transaction.user_id
+GROUP BY user_id
+HAVING num_transactions > 25
+ORDER BY num_transactions DESC;
 
 ## Exercici 2
 
 /** Mostra la mitjana de la suma de transaccions per IBAN de les targetes de crèdit en la companyia Donec Ltd. 
 utilitzant almenys 2 taules. **/
 
+-- Busco la companyia
+SELECT * FROM company
+WHERE company_name LIKE "Donec Ltd"; -- l'id és b-2242
+
+-- Busco les transaccions i targetes
+SELECT * FROM transaction
+WHERE company_id = "b-2242"; -- Només en tenen una, la CcU-2973
+
+-- Busco l'iban
+SELECT * FROM credit_card
+WHERE id = "CcU-2973"; -- És el 'PT87806228135092429456346'
+
+-- La mitjana de les transaccions de la targeta
+SELECT AVG(amount) AS avg_amount FROM transaction
+WHERE credit_card_id = "CcU-2973";
+
+-- La mitjana de la companyia Donec Ltd
+SELECT AVG(amount) AS avg_amount FROM transaction
+INNER JOIN company
+ON company.id = transaction.company_id
+WHERE company_id = (
+SELECT id FROM company
+WHERE company_name LIKE "Donec Ltd");
+
+-- PER ACABAR
+
 # Nivell 2
 
 /** Crea una nova taula que reflecteixi l'estat de les targetes de crèdit basat en si les últimes tres transaccions 
 van ser declinades i genera la següent consulta: **/
 
+-- Targetes declinades i la seva data de caducitat
+SELECT credit_card_id, declined, timestamp, expiring_date
+FROM transaction
+INNER JOIN credit_card
+ON credit_card.id = transaction.credit_card_id
+WHERE declined = 1
+ORDER BY timestamp DESC;
+
+-- Creem la taula
+CREATE TABLE credit_card_state AS
+SELECT credit_card_id, declined, timestamp, expiring_date
+FROM transaction
+INNER JOIN credit_card
+ON credit_card.id = transaction.credit_card_id
+WHERE declined = 1;
+
+SELECT * FROM credit_card_state; -- Comprovem
+
 ## Exercici 1
 
 /** Quantes targetes estan actives? **/
+
+SELECT expiring_date FROM credit_card;
+
+SELECT credit_card_id, expiring_date FROM credit_card_state;
+
+-- Necessito convertir les dates a format DATE per poder comparar amb la data actual 
+-- PER ACABAR
 
 # Nivell 3
 
 /** Crea una taula amb la qual puguem unir les dades del nou arxiu products.csv amb la base de dades creada, 
 tenint en compte que des de transaction tens product_ids. Genera la següent consulta: **/
 
+-- Ja ho he fet des del principi. 
+
 ## Exercici 1
 
 /** Necessitem conèixer el nombre de vegades que s'ha venut cada producte. **/
+
+SELECT product.id, product_name, COUNT(product_id) AS num_sales FROM transaction
+INNER JOIN product
+ON product.id = transaction.product_id
+GROUP BY product_id
+ORDER BY num_sales DESC;
