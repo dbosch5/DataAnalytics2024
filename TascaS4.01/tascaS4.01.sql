@@ -200,3 +200,5 @@ INNER JOIN product
 ON product.id = transaction.product_id
 GROUP BY product_id
 ORDER BY num_sales DESC;
+
+-- Potser falta afegir els productes que NO s'han venut?
