@@ -45,8 +45,9 @@ CREATE TABLE IF NOT EXISTS database_1.credit_card (
 	cvv VARCHAR(3),
     track1 VARCHAR(255),
     track2 VARCHAR(255),
-	expiring_date VARCHAR(10)
+	expiring_date DATE -- He hagut de modificar el CSV per ajuustar les dates a YYYY-MM-DD
     );
+
 
 -- Taula productes
 CREATE TABLE IF NOT EXISTS database_1.product (
@@ -80,20 +81,30 @@ CREATE TABLE IF NOT EXISTS database_1.transaction (
 
 /**  
 Introduïm les dades des dels CSV
+
 No em deixa carregar arxius des d'una altra carpeta que no sigui la de:
 SHOW VARIABLES LIKE "secure_file_priv";
+
 Copio els arxius a C:\ProgramData\MySQL\MySQL Server 8.0\Uploads\
 Tampoc em deixa...
+
 Utilitzo el meu estimat editor de text Vim i modifico els arxius CSV
 L'ordre per l'arxiu "companies" és la següent. La primera introdueix INSERT.. al principi de cada línia
 :%s/^/INSERT INTO company (id, company_name, phone, email, country, website) VALUES ( /
 I la següent afegeix el tancament de parèntesis i punt i coma al final de cada línia.
 :%s/$/);/
 Guardo el CSV modificat com a SQL
-Finalment, calia modificar més coses i he utilitzat un script en línia (https://www.convertsimple.com/convert-csv-to-sql-insert-statement/)
+
+Finalment, calia modificar més coses i he utilitzat un script en línia 
+(https://www.convertsimple.com/convert-csv-to-sql-insert-statement/)
+
 Executo els scripts per introduïr dades.
+
 En el cas de les dades de producte, utilitzo el Vim per eliminar el símbol de dòlar
 També al CSV de transaction, canvio els punts i comes per comes i altres modificacions.
+En el cas de les targetes, he utilitzat el Sed de GNU des de bash amb la següent ordre per adaptar la data al format DATE:
+cat introduir_credit_card.sql | sed -E 's/([0-9]{2})\/([0-9]{2})\/([0-9]{2})/20\3\-\1\-\2/' > introduir_credit_card_date_mod.sql
+De manera que MM/DD/YY ha passat a YYYY-MM-DD. No he trobat cap altra manera des de SQL.
 **/
 
 ## Exercici 1
@@ -118,6 +129,8 @@ ON user.id = transaction.user_id
 GROUP BY user_id
 HAVING num_transactions > 25
 ORDER BY num_transactions DESC;
+
+-- En cas que la base de dades fos modificada, canviant el 25 pel 30 trobariem els resultats.
 
 ## Exercici 2
 
@@ -148,7 +161,6 @@ WHERE company_id = (
 SELECT id FROM company
 WHERE company_name LIKE "Donec Ltd");
 
--- PER ACABAR
 
 # Nivell 2
 
@@ -177,12 +189,20 @@ SELECT * FROM credit_card_state; -- Comprovem
 
 /** Quantes targetes estan actives? **/
 
-SELECT expiring_date FROM credit_card;
-
 SELECT credit_card_id, expiring_date FROM credit_card_state;
+SELECT CURRENT_DATE(); -- Millor que NOW(), ja que ens retorna la data en YYYY-MM-DD
 
--- Necessito convertir les dates a format DATE per poder comparar amb la data actual 
--- PER ACABAR
+-- Comparo la data de caducitat amb la data actual i mostro les que caduquen avui o més endavant
+SELECT credit_card_id, expiring_date FROM credit_card_state
+WHERE  expiring_date >= (SELECT CURRENT_DATE());
+
+-- Faig recompte de les que estan actives
+SELECT COUNT(*) AS num_cards_active
+FROM (SELECT credit_card_id FROM credit_card_state
+WHERE  expiring_date >= (SELECT CURRENT_DATE())) AS subconsulta;
+-- No entenc molt bé perquè no funciona amb un sol àlias
+
+-- Com explico més amunt, he hagut de convertir les dates a format DATE per poder comparar amb la data actual 
 
 # Nivell 3
 
@@ -200,5 +220,3 @@ INNER JOIN product
 ON product.id = transaction.product_id
 GROUP BY product_id
 ORDER BY num_sales DESC;
-
--- Potser falta afegir els productes que NO s'han venut?
